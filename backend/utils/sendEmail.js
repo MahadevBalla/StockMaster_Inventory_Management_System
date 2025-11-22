@@ -1,7 +1,6 @@
 import nodemailer from "nodemailer";
 
-export async function sendEmail(to, subject, text) {
-
+export async function sendEmail(to, subject, text, html) {
   const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 587,
@@ -12,11 +11,11 @@ export async function sendEmail(to, subject, text) {
     },
   });
 
-
   await transporter.sendMail({
-    from: process.env.EMAIL_USER,
+    from: `"StockMaster" <${process.env.EMAIL_USER}>`,
     to,
     subject,
-    text,
+    text, // Plain text fallback
+    html, // HTML content
   });
 }

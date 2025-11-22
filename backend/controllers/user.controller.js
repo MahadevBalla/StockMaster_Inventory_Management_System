@@ -2,6 +2,7 @@ import { User } from "../models/User.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { generateOtp } from "../utils/otp.js";
 import { sendEmail } from "../utils/sendEmail.js";
+import { otpEmailTemplate, passwordResetEmailTemplate } from "../utils/emailTemplates.js";
 export const registerUser = asyncHandler(async (req, res) => {
   const { username, email, password, role } = req.body;
 
@@ -129,8 +130,14 @@ export const sendOtp = asyncHandler(async (req, res) => {
   user.otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 mins
   await user.save();
 
-  // Always send to the user's email, even if they provided username
-  await sendEmail(user.email, "Your OTP Code", `Your OTP is: ${otp}`);
+  // Send HTML email with OTP
+  const htmlContent = otpEmailTemplate(otp, user.username);
+  await sendEmail(
+    user.email,
+    "Your OTP Code - StockMaster",
+    `Your OTP is: ${otp}`, // Plain text fallback
+    htmlContent // HTML content
+  );
 
   res.status(200).json({ message: `OTP sent to ${user.email}`, email: user.email });
 });
