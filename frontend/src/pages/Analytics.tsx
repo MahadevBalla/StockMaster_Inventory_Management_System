@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { BarChart, LineChart, PieChart, Download, Filter, Calendar, Brain } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -86,6 +86,104 @@ const Analytics = () => {
   const [aiDateRange, setAiDateRange] = useState("30days");
   const { toast } = useToast();
 
+  const base = import.meta.env.VITE_API_BASE_URL || "";
+  const [inventories, setInventories] = useState<any[]>([]);
+  const [movements, setMovements] = useState<any[]>([]);
+  const pollingRef = useRef<number | null>(null);
+
+  async function fetchInventories() {
+    try {
+      const res = await fetch(`${base}/inventory`);
+      const json = await res.json();
+      setInventories(json.inventories || json || []);
+    } catch (err) {
+      console.error("Failed to fetch inventories", err);
+    }
+  }
+
+  async function fetchMovements() {
+    try {
+      const res = await fetch(`${base}/movements`);
+      const json = await res.json();
+      setMovements(Array.isArray(json) ? json : json.movements || []);
+    } catch (err) {
+      console.error("Failed to fetch movements", err);
+    }
+  }
+
+  async function fetchAll() {
+    await Promise.all([fetchInventories(), fetchMovements()]);
+  }
+
+  useEffect(() => {
+    fetchAll();
+    pollingRef.current = window.setInterval(fetchAll, 15000);
+    return () => { if (pollingRef.current) window.clearInterval(pollingRef.current); };
+  }, []);
+
+  // Compute overview stats for Analytics
+  const analyticsStats = (() => {
+    const totalValue = (inventories || []).reduce((s, inv) => {
+      const price = inv.value?.retailPrice || inv.value?.costPrice || 0;
+      return s + (price * (inv.quantity || 0));
+    }, 0);
+    const totalItems = (inventories || []).reduce((s, inv) => s + (inv.quantity || 0), 0);
+    const totalMovements = (movements || []).length;
+    return {
+      totalValue: `$${Math.round(totalValue).toLocaleString()}`,
+      totalItems: totalItems.toLocaleString(),
+      totalMovements: totalMovements.toLocaleString(),
+    };
+  })();
+
+  // Derived datasets for charts (fallback to sample data)
+  const computedStockTrendData = (() => {
+    if (inventories && inventories.length) {
+      const map: Record<string, number> = {};
+      for (const inv of inventories) {
+        const date = new Date(inv.lastUpdated || inv.updatedAt || inv.createdAt || Date.now());
+        const month = date.toLocaleString("en-US", { month: "short" });
+        const price = inv.value?.costPrice || inv.value?.retailPrice || 0;
+        map[month] = (map[month] || 0) + (price * (inv.quantity || 0));
+      }
+      return Object.entries(map).map(([month, value]) => ({ month, value }));
+    }
+    return stockTrendData;
+  })();
+
+  const computedItemMovementData = (() => {
+    if (movements && movements.length) {
+      // days of week
+      const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+      const map: Record<string, { incoming: number; outgoing: number }> = {};
+      for (const d of days) map[d] = { incoming: 0, outgoing: 0 };
+      for (const m of movements) {
+        const date = new Date(m.createdAt || Date.now());
+        const day = days[date.getDay()];
+        const t = (m.type || "").toLowerCase();
+        const qty = Number(m.quantity || 0);
+        const isIncoming = ["incoming", "in", "receipt", "restock"].some(x => t.includes(x));
+        if (isIncoming) map[day].incoming += qty; else map[day].outgoing += qty;
+      }
+      return Object.entries(map).map(([day, v]) => ({ day, incoming: v.incoming, outgoing: v.outgoing }));
+    }
+    return itemMovementData;
+  })();
+
+  const computedCategoryDistributionData = (() => {
+    if (inventories && inventories.length) {
+      const map: Record<string, number> = {};
+      for (const inv of inventories) {
+        const cat = inv.product?.category || inv.category || "Other";
+        map[cat] = (map[cat] || 0) + (inv.quantity || 0);
+      }
+      // convert to chart format and add default fill color slot
+      const fills = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
+      return Object.entries(map).map(([name, value], i) => ({ name, value, fill: fills[i % fills.length] }));
+    }
+    return categoryDistributionData;
+  })();
+
   const handleExportPDF = () => {
     toast({
       title: "PDF Export Started",
@@ -104,21 +202,24 @@ const Analytics = () => {
       });
 
       // Filter data based on selected warehouse if needed
+      // Use live inventory data (fall back to sample if empty)
+      const sourceData = (inventories && inventories.length) ? inventories : sampleInventoryData;
       const filteredData = aiWarehouse === "all"
-        ? sampleInventoryData
-        : sampleInventoryData.filter(item => {
-          // Map the UI selection value to actual warehouse name
+        ? sourceData
+        : sourceData.filter(item => {
           const warehouseName = {
             "wh-1": "Warehouse A",
             "wh-2": "Warehouse B",
             "wh-3": "Warehouse C"
           }[aiWarehouse] || aiWarehouse;
 
-          return item.warehouse === warehouseName;
+          // inventory may contain warehouse object or string
+          const itemWh = item.warehouse?.name || item.warehouse || item.warehouseName || item.warehouseId;
+          return itemWh === warehouseName;
         });
 
       // Create a blob URL for downloading the PDF
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/inventory/generate-analysis-report`, {
+      const response = await fetch(`${base}/inventory/generate-analysis-report`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -200,6 +301,21 @@ const Analytics = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-3 mb-4">
+            <Card className="p-4">
+              <div className="text-sm text-muted-foreground">Total Stock Value</div>
+              <div className="text-2xl font-bold mt-2">{analyticsStats.totalValue}</div>
+            </Card>
+            <Card className="p-4">
+              <div className="text-sm text-muted-foreground">Total Items</div>
+              <div className="text-2xl font-bold mt-2">{analyticsStats.totalItems}</div>
+            </Card>
+            <Card className="p-4">
+              <div className="text-sm text-muted-foreground">Movements</div>
+              <div className="text-2xl font-bold mt-2">{analyticsStats.totalMovements}</div>
+            </Card>
+          </div>
+
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <Card className="p-6">
               <div className="flex items-center gap-2 mb-4">
@@ -209,7 +325,7 @@ const Analytics = () => {
               <div className="h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <RechartBarChart
-                    data={stockTrendData}
+                    data={computedStockTrendData}
                     margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" />
@@ -230,7 +346,7 @@ const Analytics = () => {
               <div className="h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <RechartLineChart
-                    data={itemMovementData}
+                    data={computedItemMovementData}
                     margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" />
@@ -253,8 +369,8 @@ const Analytics = () => {
               <div className="h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <RechartPieChart>
-                    <Pie
-                      data={categoryDistributionData}
+                      <Pie
+                        data={computedCategoryDistributionData}
                       cx="50%"
                       cy="50%"
                       innerRadius={60}
@@ -264,9 +380,9 @@ const Analytics = () => {
                       dataKey="value"
                       label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                     >
-                      {categoryDistributionData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill} />
-                      ))}
+                        {computedCategoryDistributionData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fill} />
+                        ))}
                     </Pie>
                     <Tooltip formatter={(value, name) => [`${value} units`, name]} />
                   </RechartPieChart>

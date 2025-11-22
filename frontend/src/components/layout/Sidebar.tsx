@@ -193,7 +193,7 @@ const Sidebar = ({ currentUser }: SidebarProps) => {
 
   const navigationItems = [
     {
-      href: "/",
+      href: "/index",
       icon: Home,
       label: "Dashboard",
       visible: isRouteVisible("/")

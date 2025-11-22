@@ -20,7 +20,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 
 // Data for the category distribution chart
@@ -60,6 +60,88 @@ const Dashboard = () => {
   const [timeRange, setTimeRange] = useState("30days");
   const [selectedWarehouse, setSelectedWarehouse] = useState("all");
 
+  const base = import.meta.env.VITE_API_BASE_URL || "";
+
+  // Data from backend
+  const [products, setProducts] = useState<any[]>([]);
+  const [inventories, setInventories] = useState<any[]>([]);
+  const [movements, setMovements] = useState<any[]>([]);
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const [warehouses, setWarehouses] = useState<any[]>([]);
+
+  const pollingRef = useRef<number | null>(null);
+
+  // Fetch helpers
+  async function fetchProducts() {
+    try {
+      const res = await fetch(`${base}/products?limit=1000`);
+      const data = await res.json();
+      // productController returns { products, totalPages, currentPage }
+      setProducts(data.products || data || []);
+    } catch (err) {
+      console.error("Failed fetching products", err);
+    }
+  }
+
+  async function fetchInventories() {
+    try {
+      const res = await fetch(`${base}/inventory`);
+      const json = await res.json();
+      // inventory.controller returns { message, inventories }
+      setInventories(json.inventories || json || []);
+    } catch (err) {
+      console.error("Failed fetching inventories", err);
+    }
+  }
+
+  async function fetchMovements() {
+    try {
+      const res = await fetch(`${base}/movements`);
+      const json = await res.json();
+      setMovements(Array.isArray(json) ? json : json.movements || []);
+    } catch (err) {
+      console.error("Failed fetching movements", err);
+    }
+  }
+
+  async function fetchAlerts() {
+    try {
+      const res = await fetch(`${base}/alerts`);
+      const json = await res.json();
+      // alerts controller wraps in ApiResponse { data }
+      setAlerts(json.data || json || []);
+    } catch (err) {
+      console.error("Failed fetching alerts", err);
+    }
+  }
+
+  async function fetchWarehouses() {
+    try {
+      const res = await fetch(`${base}/warehouse`);
+      const json = await res.json();
+      setWarehouses(json.data || json || []);
+    } catch (err) {
+      console.error("Failed fetching warehouses", err);
+    }
+  }
+
+  async function fetchAll() {
+    await Promise.all([fetchProducts(), fetchInventories(), fetchMovements(), fetchAlerts(), fetchWarehouses()]);
+  }
+
+  useEffect(() => {
+    fetchAll();
+
+    // Poll every 15 seconds for near-real-time updates
+    pollingRef.current = window.setInterval(() => {
+      fetchAll();
+    }, 15000);
+
+    return () => {
+      if (pollingRef.current) window.clearInterval(pollingRef.current);
+    };
+  }, []);
+
   // Icons for the stats cards
   const statsIcons = [
     <Package className="h-5 w-5" />,
@@ -68,12 +150,23 @@ const Dashboard = () => {
     <Truck className="h-5 w-5" />,
   ];
 
-  const stockStats = [
-    { title: "Total Stock", value: "1,200", trend: { value: 10, label: "Increase", positive: true } },
-    { title: "Sales", value: "800", trend: { value: 15, label: "Increase", positive: true } },
-    { title: "Returns", value: "50", trend: { value: 5, label: "Decrease", positive: false } },
-    { title: "Deliveries", value: "1,000", trend: { value: 20, label: "Increase", positive: true } },
-  ];
+  // compute dashboard statistics from live data
+  const computedStockStats = (() => {
+    const totalStock = inventories.reduce((s, inv) => s + (inv.quantity || 0), 0);
+    const totalStockValue = inventories.reduce((s, inv) => {
+      const price = inv.value?.costPrice || inv.value?.retailPrice || 0;
+      return s + (price * (inv.quantity || 0));
+    }, 0);
+    const lowStockCount = alerts.filter((a: any) => a.type === "low-stock").length;
+    const pendingTransfers = movements.filter((m: any) => (m.status || "").toLowerCase() === "pending").length;
+
+    return [
+      { title: "Total Stock", value: totalStock.toLocaleString(), trend: { value: 0, label: "", positive: true } },
+      { title: "Stock Value", value: `$${Math.round(totalStockValue).toLocaleString()}`, trend: { value: 0, label: "", positive: true } },
+      { title: "Low Stock Items", value: lowStockCount.toString(), trend: { value: 0, label: "", positive: false } },
+      { title: "Pending Transfers", value: pendingTransfers.toString(), trend: { value: 0, label: "", positive: false } },
+    ];
+  })();
 
   // Mock data for stock level chart
   const stockLevelData = [
@@ -93,8 +186,125 @@ const Dashboard = () => {
 
   const handleExportReport = () => {
     // In a real app, this would generate and download a PDF report
-    console.log("Exporting dashboard report");
+    console.log("Exporting index report");
   };
+
+  // Derived (computed) data used for UI (fall back to mocks if empty)
+  const computedCategoryData = (() => {
+    if (products && products.length) {
+      const map: Record<string, number> = {};
+      for (const p of products) {
+        const cat = p.category || "Other";
+        const qty = typeof p.stock === "number" ? p.stock : 0;
+        map[cat] = (map[cat] || 0) + qty;
+      }
+      return Object.entries(map).map(([name, value], i) => ({ name, value }));
+    }
+    return categoryData;
+  })();
+
+  const computedTopProducts = (() => {
+    if (products && products.length) {
+      return products
+        .slice()
+        .sort((a, b) => (b.stock || 0) - (a.stock || 0))
+        .slice(0, 5)
+        .map((p: any) => ({ id: p._id || p.id, name: p.name, sku: p.sku || "", sales: p.stock || 0, growth: 0 }));
+    }
+    return topProducts;
+  })();
+
+  const computedWarehouseData = (() => {
+    if (warehouses && warehouses.length) {
+      // sum inventory per warehouse
+      const invMap: Record<string, { stock: number; itemCount: number }> = {};
+      for (const inv of inventories) {
+        const wh = inv.warehouse?.name || inv.warehouse || "unknown";
+        invMap[wh] = invMap[wh] || { stock: 0, itemCount: 0 };
+        invMap[wh].stock += inv.quantity || 0;
+        invMap[wh].itemCount += 1;
+      }
+
+      return warehouses.map((w: any) => {
+        let loc = "";
+        if (w.location) {
+          if (typeof w.location === "string") loc = w.location;
+          else if (typeof w.location === "object") {
+            const parts = [];
+            if (w.location.address) parts.push(w.location.address);
+            if (w.location.city) parts.push(w.location.city);
+            if (w.location.postalCode) parts.push(w.location.postalCode);
+            loc = parts.join(", ");
+          }
+        }
+
+        return {
+          id: w._id || w.id,
+          name: w.name,
+          stock: invMap[w.name]?.stock || 0,
+          location: loc,
+          capacity: w.capacity || 0,
+          usedCapacity: w.currentOccupancy || invMap[w.name]?.stock || 0,
+          itemCount: invMap[w.name]?.itemCount || 0,
+        };
+      });
+    }
+    return warehouseData;
+  })();
+
+  const computedAlerts = (alerts && alerts.length) ? alerts : inventoryAlerts;
+
+  const computedStockLevelData = (() => {
+    if (movements && movements.length) {
+      // aggregate by month name
+      const map: Record<string, number> = {};
+      for (const m of movements) {
+        const date = new Date(m.createdAt || Date.now());
+        const month = date.toLocaleString("en-US", { month: "short" });
+        const qty = Number(m.quantity || 0);
+        const t = (m.type || "").toLowerCase();
+        const isIncoming = ["incoming", "in", "receipt", "restock"].some(x => t.includes(x));
+        map[month] = (map[month] || 0) + (isIncoming ? qty : -qty);
+      }
+      return Object.entries(map).map(([month, value]) => ({ name: month, stock: value, date: "", warehouse1: 0 }));
+    }
+    return stockLevelData;
+  })();
+
+  const computedActivityFeed = (() => {
+    if (movements && movements.length) {
+      return movements.slice(0, 10).map((m: any) => ({
+        id: m._id,
+        description: `${m.type || "Movement"} for ${m.product?.name || m.product || "item"}`,
+        timestamp: new Date(m.createdAt).toLocaleString(),
+        type: m.type || "",
+        user: m.initiatedBy?.username || m.initiatedBy || "system",
+        quantity: m.quantity,
+        item: m.product?.name || m.product,
+        location: m.fromWarehouse?.name || m.toWarehouse?.name || "",
+      }));
+    }
+    return activityFeed;
+  })();
+
+  // Expiry stats
+  const expiryStats = (() => {
+    if (!inventories || inventories.length === 0) return { exp7: 0, exp30: 0, total: 0 };
+    const now = new Date();
+    let exp7 = 0;
+    let exp30 = 0;
+    let total = 0;
+    for (const inv of inventories) {
+      const dateStr = inv.batchInfo?.expiryDate || inv.expiryDate || null;
+      if (!dateStr) continue;
+      const d = new Date(dateStr);
+      const diff = (d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+      total++;
+      if (diff <= 7 && diff > 0) exp7++;
+      if (diff <= 30 && diff > 0) exp30++;
+    }
+    return { exp7, exp30, total };
+  })();
 
   return (
     <>
@@ -109,7 +319,7 @@ const Dashboard = () => {
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
-        {stockStats.map((stat, index) => (
+        {computedStockStats.map((stat, index) => (
           <StatsCard
             key={stat.title}
             title={stat.title}
@@ -131,12 +341,12 @@ const Dashboard = () => {
           {/* Charts and Activity Feed */}
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             <StockLevelChart
-              data={stockLevelData}
+              data={computedStockLevelData}
               className="lg:col-span-2"
             />
 
             <InventoryAlerts
-              alerts={inventoryAlerts}
+              alerts={computedAlerts}
               className="h-full"
             />
             {/* <ActivityFeed
@@ -156,8 +366,8 @@ const Dashboard = () => {
                   <div className="h-[250px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie
-                          data={categoryData}
+                          <Pie
+                            data={computedCategoryData}
                           cx="50%"
                           cy="50%"
                           innerRadius={60}
@@ -167,7 +377,7 @@ const Dashboard = () => {
                           dataKey="value"
                           label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
                         >
-                          {categoryData.map((entry, index) => (
+                          {computedCategoryData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                           ))}
                         </Pie>
@@ -180,7 +390,7 @@ const Dashboard = () => {
                 <div>
                   <h3 className="text-sm font-medium mb-3">Top Products</h3>
                   <div className="space-y-3">
-                    {topProducts.slice(0, 5).map((product) => (
+                    {computedTopProducts.slice(0, 5).map((product) => (
                       <div key={product.id} className="flex items-center justify-between">
                         <div className="flex-1">
                           <div className="text-sm font-medium">{product.name}</div>
@@ -201,7 +411,7 @@ const Dashboard = () => {
           </Card>
 
           {/* Warehouse Summary */}
-          <WarehouseSummary warehouses={warehouseData} />
+          <WarehouseSummary warehouses={computedWarehouseData} />
         </TabsContent>
 
         <TabsContent value="inventory" className="space-y-6">
@@ -214,7 +424,7 @@ const Dashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <InventoryAlerts alerts={inventoryAlerts} />
+              <InventoryAlerts alerts={computedAlerts} />
             </CardContent>
           </Card>
 
@@ -232,19 +442,19 @@ const Dashboard = () => {
                   <Card className="bg-amber-50 border-amber-200">
                     <CardContent className="p-4">
                       <div className="text-sm font-medium text-amber-800">Expiring in 7 days</div>
-                      <div className="text-2xl font-bold mt-1">5 items</div>
+                      <div className="text-2xl font-bold mt-1">{expiryStats.exp7} items</div>
                     </CardContent>
                   </Card>
                   <Card className="bg-orange-50 border-orange-200">
                     <CardContent className="p-4">
                       <div className="text-sm font-medium text-orange-800">Expiring in 30 days</div>
-                      <div className="text-2xl font-bold mt-1">12 items</div>
+                      <div className="text-2xl font-bold mt-1">{expiryStats.exp30} items</div>
                     </CardContent>
                   </Card>
                   <Card className="bg-blue-50 border-blue-200">
                     <CardContent className="p-4">
                       <div className="text-sm font-medium text-blue-800">Total with expiry date</div>
-                      <div className="text-2xl font-bold mt-1">83 items</div>
+                      <div className="text-2xl font-bold mt-1">{expiryStats.total} items</div>
                     </CardContent>
                   </Card>
                 </div>
