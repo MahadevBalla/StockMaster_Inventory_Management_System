@@ -8,31 +8,38 @@ const ACCESS_TOKEN_EXPIRY = process.env.ACCESS_TOKEN_EXPIRY || "1h";
 const REFRESH_TOKEN_EXPIRY = process.env.REFRESH_TOKEN_EXPIRY || "7d";
 
 // 🧩 Schema Definition
+
 const userSchema = new mongoose.Schema(
   {
-    username: { type: String, required: true, unique: true }, // unique usernames
-    email: { type: String, required: true, unique: true }, // unique emails
-    passwordHash: { type: String, required: true }, // hashed password only
+    username: { type: String, required: true, unique: true },
+    email: { type: String, required: true, unique: true },
+    passwordHash: { type: String, required: true },
     role: {
       type: String,
-      enum: ["admin", "manager", "staff"], // only these values allowed
+      enum: ["admin", "manager", "staff"],
       required: true,
     },
     warehouses: [
       {
-        type: mongoose.Schema.Types.ObjectId, // reference to Warehouse model
+        type: mongoose.Schema.Types.ObjectId,
         ref: "Warehouse",
         required: function () {
           return this.role !== "admin";
-        }, // Admin doesn't need warehouse
+        },
       },
     ],
-    lastLogin: Date, // for logging login history
-    isActive: { type: Boolean, default: true }, // soft delete functionality
-    refreshTokens: [String], // multiple valid refresh tokens
+    lastLogin: Date,
+    isActive: { type: Boolean, default: true },
+    refreshTokens: [String],
+
+    // OTP fields
+    otpCode: String,
+    otpExpiry: Date,
+    isOtpVerified: { type: Boolean, default: false },
   },
   { timestamps: true }
-); // auto adds createdAt and updatedAt
+);
+// auto adds createdAt and updatedAt
 
 // 🔐 Hash password before save if it's modified
 userSchema.pre("save", async function (next) {
