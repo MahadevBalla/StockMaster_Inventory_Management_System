@@ -14,7 +14,8 @@ import {
   Menu,
   ChevronDown,
   ChevronRight,
-  Home
+  Home,
+  Receipt
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -74,6 +75,7 @@ const roleBasedRoutes: Record<UserRole, string[]> = {
     "/analytics",
     "/products",
     "/stock",
+    "/receipts",
     "/logs",
     "/warehouses",
     "/categories",
@@ -85,6 +87,7 @@ const roleBasedRoutes: Record<UserRole, string[]> = {
     "/analytics",
     "/products",
     "/stock",
+    "/receipts",
     "/logs",
     "/warehouses",
     "/categories"
@@ -209,6 +212,12 @@ const Sidebar = ({ currentUser }: SidebarProps) => {
       icon: Layers,
       label: "Stock Management",
       visible: isRouteVisible("/stock")
+    },
+    {
+      href: "/receipts",
+      icon: Receipt,
+      label: "Receipts",
+      visible: isRouteVisible("/receipts")
     },
     {
       href: "/logs",
