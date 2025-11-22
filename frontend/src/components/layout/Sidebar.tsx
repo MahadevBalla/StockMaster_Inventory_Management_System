@@ -16,10 +16,9 @@ import {
   ChevronRight,
   Home,
   Receipt,
-  Truck
+  Truck,
+  ArrowRightLeft
 } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -29,7 +28,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Tooltip,
   TooltipContent,
-  TooltipTrigger
+  TooltipTrigger,
+  TooltipProvider
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
@@ -37,6 +37,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Button } from "@/components/ui/button";
 
 type UserRole = "admin" | "manager" | "staff";
 
@@ -82,7 +83,8 @@ const roleBasedRoutes: Record<UserRole, string[]> = {
     "/warehouses",
     "/categories",
     "/users",
-    "/settings"
+    "/settings",
+    "/move-history"
   ],
   manager: [
     "/",
@@ -93,12 +95,14 @@ const roleBasedRoutes: Record<UserRole, string[]> = {
     "/delivery-orders",
     "/logs",
     "/warehouses",
-    "/categories"
+    "/categories",
+    "/move-history"
   ],
   staff: [
     "/",
     "/stock",
-    "/products"
+    "/products",
+    "/move-history"
   ]
 };
 
@@ -132,42 +136,44 @@ const NavItem = ({
 
   return (
     <li className="my-1">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="flex items-center">
-            {disabled ? (
-              <div className={commonClasses} onClick={onClick}>
-                {Icon && <Icon className="h-5 w-5" />}
-                {!collapsed && <span className="text-sm">{label}</span>}
-                {hasSubItems && showExpand && !collapsed && (
-                  <div className="ml-auto">
-                    <button onClick={handleExpandClick}>
-                      {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <Link to={href} className={commonClasses} onClick={onClick}>
-                {Icon && <Icon className="h-5 w-5" />}
-                {!collapsed && <span className="text-sm">{label}</span>}
-                {hasSubItems && showExpand && !collapsed && (
-                  <div className="ml-auto">
-                    <button onClick={handleExpandClick}>
-                      {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                    </button>
-                  </div>
-                )}
-              </Link>
-            )}
-          </div>
-        </TooltipTrigger>
-        {collapsed && (
-          <TooltipContent side="right">
-            {label}
-          </TooltipContent>
-        )}
-      </Tooltip>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex items-center">
+              {disabled ? (
+                <div className={commonClasses} onClick={onClick}>
+                  {Icon && <Icon className="h-5 w-5" />}
+                  {!collapsed && <span className="text-sm">{label}</span>}
+                  {hasSubItems && showExpand && !collapsed && (
+                    <div className="ml-auto">
+                      <button onClick={handleExpandClick}>
+                        {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Link to={href} className={commonClasses} onClick={onClick}>
+                  {Icon && <Icon className="h-5 w-5" />}
+                  {!collapsed && <span className="text-sm">{label}</span>}
+                  {hasSubItems && showExpand && !collapsed && (
+                    <div className="ml-auto">
+                      <button onClick={handleExpandClick}>
+                        {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  )}
+                </Link>
+              )}
+            </div>
+          </TooltipTrigger>
+          {collapsed && (
+            <TooltipContent side="right">
+              {label}
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
     </li>
   );
 };
@@ -217,16 +223,10 @@ const Sidebar = ({ currentUser }: SidebarProps) => {
       visible: isRouteVisible("/stock")
     },
     {
-      href: "/receipts",
-      icon: Receipt,
-      label: "Receipts",
-      visible: isRouteVisible("/receipts")
-    },
-    {
-      href: "/delivery-orders",
-      icon: Truck,
-      label: "Delivery Orders",
-      visible: isRouteVisible("/delivery-orders")
+      href: "/move-history",
+      icon: ArrowRightLeft,
+      label: "Move History",
+      visible: isRouteVisible("/move-history")
     },
     {
       href: "/logs",

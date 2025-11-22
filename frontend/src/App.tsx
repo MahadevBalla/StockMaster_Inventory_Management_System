@@ -19,6 +19,7 @@ import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Receipts from "./pages/Receipts";
 import DeliveryOrders from "./pages/DeliveryOrders";
+import MoveHistory from "./pages/MoveHistory";
 import { useEffect, useState } from "react";
 
 const queryClient = new QueryClient();
@@ -69,6 +70,7 @@ const App = () => (
               <Route path="/stock" element={<Stock />} />
               <Route path="/receipts" element={<Receipts />} />
               <Route path="/delivery-orders" element={<DeliveryOrders />} />
+              <Route path="/move-history" element={<MoveHistory />} />
               <Route path="/logs" element={<Logs />} />
               <Route path="/warehouses" element={<Warehouses />} />
               <Route path="/warehouses/:id" element={<Warehouses />} />

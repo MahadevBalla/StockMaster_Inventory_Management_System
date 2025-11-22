@@ -23,7 +23,7 @@ const InventorySchema = new mongoose.Schema(
       manufacturingDate: Date,
       supplier: String,
     },
-    locationInWarehouse: String,
+    locationInWarehouse: { type: String, default: "General" },
     value: {
       costPrice: Number,
       retailPrice: Number,
@@ -33,8 +33,8 @@ const InventorySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Compound index for fast lookups
-InventorySchema.index({ product: 1, warehouse: 1 }, { unique: true });
+// Compound index for fast lookups (Updated to include locationInWarehouse)
+InventorySchema.index({ product: 1, warehouse: 1, locationInWarehouse: 1 }, { unique: true });
 
 // Static methods
 InventorySchema.statics.allocateStock = async function (

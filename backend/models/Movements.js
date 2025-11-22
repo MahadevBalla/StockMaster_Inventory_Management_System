@@ -3,8 +3,7 @@ const MovementSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ["Incoming", "Outgoing", "Transfer"],
-      // enum: ['purchase', 'sale', 'transfer', 'return', 'adjustment', 'write-off'],
+      enum: ["Incoming", "Outgoing", "Transfer", "Adjustment"],
       required: true,
     },
     product: {
@@ -20,6 +19,8 @@ const MovementSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Warehouse",
     },
+    fromLocation: String, // e.g., "Rack A", "Main Warehouse"
+    toLocation: String,   // e.g., "Rack B", "Production Floor"
     quantity: { type: Number, required: true },
     // unitPrice: Number,
     // reference: String, // PO number, invoice number, etc.
