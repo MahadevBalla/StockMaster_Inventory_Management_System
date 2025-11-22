@@ -70,7 +70,7 @@ interface NavItemProps {
   icon: React.ElementType;
   label: string;
   active: boolean;
-  onClick?: () => void;
+  onClick?: (e?: React.MouseEvent) => void;
   collapsed?: boolean;
   disabled?: boolean;
   hasSubItems?: boolean;
@@ -277,10 +277,12 @@ const Sidebar = ({ currentUser }: SidebarProps) => {
   ];
 
   const sidebarContent = (
-    <div className={cn(
-      "h-full flex flex-col bg-background border-r",
-      collapsed ? "w-16" : "w-64"
-    )}>
+    <div
+      className={cn(
+        "h-full flex flex-col bg-background border-r transition-all duration-300 ease-in-out",
+        collapsed ? "w-16" : "w-64"
+      )}
+    >
       {/* Header */}
       <div className="p-4 flex items-center justify-between border-b">
         {!collapsed && (
@@ -307,64 +309,58 @@ const Sidebar = ({ currentUser }: SidebarProps) => {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-2">
-        <ul className="space-y-1">
-          {navigationItems.map((item) => {
-            if (!item.visible) return null;
+        {/* Products Section */}
+        <div className="mb-4">
+          {!collapsed && <h3 className="px-4 text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Products</h3>}
+          <ul className="space-y-1">
+            <NavItem href="/products" icon={Package} label="Products" active={location.pathname === "/products"} collapsed={collapsed} />
+            <NavItem href="/stock" icon={Layers} label="Stock Availability" active={location.pathname === "/stock"} collapsed={collapsed} />
+            <NavItem href="/categories" icon={Tag} label="Categories" active={location.pathname === "/categories"} collapsed={collapsed} />
+            <NavItem href="/products" icon={ClipboardList} label="Reordering Rules" active={false} collapsed={collapsed} onClick={(e) => { e.preventDefault(); navigate('/products'); }} />
+          </ul>
+        </div>
 
-            if (item.hasSubItems) {
-              return (
-                <Collapsible
-                  key={item.href}
-                  open={warehousesOpen}
-                  onOpenChange={setWarehousesOpen}
-                >
-                  <CollapsibleTrigger asChild>
-                    <div>
-                      <NavItem
-                        href={item.href}
-                        icon={item.icon}
-                        label={item.label}
-                        active={location.pathname === item.href}
-                        collapsed={collapsed}
-                        hasSubItems={item.hasSubItems}
-                        isOpen={warehousesOpen}
-                        showExpand={true}
-                        toggleExpand={() => setWarehousesOpen(!warehousesOpen)}
-                      />
-                    </div>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    {!collapsed && item.subItems && (
-                      <ul className="pl-7 pt-1">
-                        {item.subItems.map((subItem) => (
-                          <NavItem
-                            key={subItem.href}
-                            href={subItem.href}
-                            icon={subItem.icon}
-                            label={subItem.label}
-                            active={location.pathname === subItem.href}
-                            collapsed={collapsed}
-                          />
-                        ))}
-                      </ul>
-                    )}
-                  </CollapsibleContent>
-                </Collapsible>
-              );
-            }
+        {/* Operations Section */}
+        <div className="mb-4">
+          {!collapsed && <h3 className="px-4 text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Operations</h3>}
+          <ul className="space-y-1">
+            <NavItem href="/receipts" icon={Receipt} label="Receipts (Incoming)" active={location.pathname === "/receipts"} collapsed={collapsed} />
+            <NavItem href="/delivery-orders" icon={Truck} label="Delivery Orders (Outgoing)" active={location.pathname === "/delivery-orders"} collapsed={collapsed} />
+            <NavItem href="/stock" icon={ArrowRightLeft} label="Inventory Adjustment" active={false} collapsed={collapsed} onClick={(e) => { e.preventDefault(); navigate('/stock'); }} />
+          </ul>
+        </div>
 
-            return (
-              <NavItem
-                key={item.href}
-                href={item.href}
-                icon={item.icon}
-                label={item.label}
-                active={location.pathname === item.href}
-                collapsed={collapsed}
-              />
-            );
-          })}
-        </ul>
+        {/* Move History Section */}
+        <div className="mb-4">
+          {!collapsed && <h3 className="px-4 text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">History</h3>}
+          <ul className="space-y-1">
+            <NavItem href="/move-history" icon={ArrowRightLeft} label="Move History" active={location.pathname === "/move-history"} collapsed={collapsed} />
+          </ul>
+        </div>
+
+        {/* Dashboard Section */}
+        <div className="mb-4">
+          {!collapsed && <h3 className="px-4 text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Dashboard</h3>}
+          <ul className="space-y-1">
+            <NavItem href="/index" icon={Home} label="Dashboard" active={location.pathname === "/index" || location.pathname === "/"} collapsed={collapsed} />
+            <NavItem href="/analytics" icon={BarChart3} label="Analytics" active={location.pathname === "/analytics"} collapsed={collapsed} />
+          </ul>
+        </div>
+
+        {/* Settings Section */}
+        <div className="mb-4">
+          {!collapsed && <h3 className="px-4 text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Settings</h3>}
+          <ul className="space-y-1">
+            <NavItem href="/warehouses" icon={Store} label="Warehouse" active={location.pathname === "/warehouses"} collapsed={collapsed} />
+            {currentUser.role === 'admin' && (
+              <>
+                <NavItem href="/users" icon={Users} label="User Management" active={location.pathname === "/users"} collapsed={collapsed} />
+                <NavItem href="/settings" icon={Settings} label="Settings" active={location.pathname === "/settings"} collapsed={collapsed} />
+              </>
+            )}
+            <NavItem href="/logs" icon={ClipboardList} label="Activity Logs" active={location.pathname === "/logs"} collapsed={collapsed} />
+          </ul>
+        </div>
       </nav>
 
       {/* User info (moved to bottom) */}

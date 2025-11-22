@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Download, Filter, Plus, Search, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,207 +12,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 
-// Extended stock data based on the updated schema
-const stockData = [
-  {
-    id: "1",
-    product: {
-      name: "Blue Widgets",
-      sku: "BW-1001"
-    },
-    warehouse: "Warehouse A",
-    quantity: 82,
-    amount: 8200,
-    allocatedQuantity: 10,
-    unit: "piece",
-    threshold: 25,
-    status: "normal",
-    lastUpdated: new Date("2025-04-15"),
-    batchInfo: {
-      batchNumber: "BW-A001",
-      expiryDate: new Date("2026-04-15"),
-      manufacturingDate: new Date("2025-03-01"),
-      supplier: "Widget Suppliers Inc."
-    },
-    locationInWarehouse: "Aisle 3, Rack B, Shelf 2",
-    value: {
-      costPrice: 75.50,
-      retailPrice: 120.00,
-      currency: "INR"
-    }
-  },
-  {
-    id: "2",
-    product: {
-      name: "Blue Widgets",
-      sku: "BW-1001"
-    },
-    warehouse: "Warehouse B",
-    quantity: 60,
-    amount: 6000,
-    allocatedQuantity: 5,
-    unit: "piece",
-    threshold: 25,
-    status: "normal",
-    lastUpdated: new Date("2025-04-16"),
-    batchInfo: {
-      batchNumber: "BW-B002",
-      expiryDate: new Date("2026-04-10"),
-      manufacturingDate: new Date("2025-03-05"),
-      supplier: "Widget Suppliers Inc."
-    },
-    locationInWarehouse: "Aisle 1, Rack C, Shelf 4",
-    value: {
-      costPrice: 75.50,
-      retailPrice: 120.00,
-      currency: "INR"
-    }
-  },
-  {
-    id: "3",
-    product: {
-      name: "Red Gadgets",
-      sku: "RG-2002"
-    },
-    warehouse: "Warehouse A",
-    quantity: 45,
-    amount: 4500,
-    allocatedQuantity: 15,
-    unit: "piece",
-    threshold: 20,
-    status: "normal",
-    lastUpdated: new Date("2025-04-17"),
-    batchInfo: {
-      batchNumber: "RG-A003",
-      expiryDate: new Date("2026-05-20"),
-      manufacturingDate: new Date("2025-03-20"),
-      supplier: "Gadget Makers Ltd."
-    },
-    locationInWarehouse: "Aisle 4, Rack A, Shelf 1",
-    value: {
-      costPrice: 45.25,
-      retailPrice: 89.99,
-      currency: "INR"
-    }
-  },
-  {
-    id: "4",
-    product: {
-      name: "Red Gadgets",
-      sku: "RG-2002"
-    },
-    warehouse: "Warehouse C",
-    quantity: 42,
-    amount: 4200,
-    allocatedQuantity: 0,
-    unit: "piece",
-    threshold: 20,
-    status: "normal",
-    lastUpdated: new Date("2025-04-15"),
-    batchInfo: {
-      batchNumber: "RG-C004",
-      expiryDate: new Date("2026-05-15"),
-      manufacturingDate: new Date("2025-03-15"),
-      supplier: "Gadget Makers Ltd."
-    },
-    locationInWarehouse: "Aisle 2, Rack D, Shelf 3",
-    value: {
-      costPrice: 45.25,
-      retailPrice: 89.99,
-      currency: "INR"
-    }
-  },
-  {
-    id: "5",
-    product: {
-      name: "Green Widgets",
-      sku: "GW-3003"
-    },
-    warehouse: "Warehouse B",
-    quantity: 120,
-    amount: 7200,
-    allocatedQuantity: 20,
-    unit: "box",
-    threshold: 30,
-    status: "normal",
-    lastUpdated: new Date("2025-04-16"),
-    batchInfo: {
-      batchNumber: "GW-B005",
-      expiryDate: new Date("2026-06-10"),
-      manufacturingDate: new Date("2025-04-01"),
-      supplier: "Widget Suppliers Inc."
-    },
-    locationInWarehouse: "Aisle 5, Rack E, Shelf 2",
-    value: {
-      costPrice: 35.75,
-      retailPrice: 69.99,
-      currency: "INR"
-    }
-  },
-  {
-    id: "6",
-    product: {
-      name: "Yellow Gadgets",
-      sku: "YG-4004"
-    },
-    warehouse: "Warehouse A",
-    quantity: 12,
-    amount: 1200,
-    allocatedQuantity: 8,
-    unit: "piece",
-    threshold: 20,
-    status: "low",
-    lastUpdated: new Date("2025-04-14"),
-    batchInfo: {
-      batchNumber: "YG-A006",
-      expiryDate: new Date("2026-04-30"),
-      manufacturingDate: new Date("2025-03-10"),
-      supplier: "Gadget Makers Ltd."
-    },
-    locationInWarehouse: "Aisle 2, Rack B, Shelf 1",
-    value: {
-      costPrice: 55.25,
-      retailPrice: 99.99,
-      currency: "INR"
-    }
-  },
-  {
-    id: "7",
-    product: {
-      name: "Medical Supplies",
-      sku: "MS-6006"
-    },
-    warehouse: "Warehouse C",
-    quantity: 45,
-    amount: 2250,
-    allocatedQuantity: 10,
-    unit: "box",
-    threshold: 10,
-    status: "normal",
-    lastUpdated: new Date("2025-04-18"),
-    batchInfo: {
-      batchNumber: "MS-C007",
-      expiryDate: new Date("2025-06-20"),
-      manufacturingDate: new Date("2025-01-20"),
-      supplier: "MedSupply Co."
-    },
-    locationInWarehouse: "Aisle 1, Rack A, Shelf 4",
-    value: {
-      costPrice: 25.50,
-      retailPrice: 49.99,
-      currency: "INR"
-    }
-  }
-];
+import axios from "axios";
+import { Spinner } from "@/components/ui/spinner";
 
-const warehouses = [
-  "All Warehouses",
-  "Warehouse A",
-  "Warehouse B",
-  "Warehouse C",
-];
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const Stock = () => {
+  const [stockData, setStockData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [warehouses, setWarehouses] = useState(["All Warehouses"]);
   const [searchQuery, setSearchQuery] = useState("");
   const [warehouseFilter, setWarehouseFilter] = useState("All Warehouses");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -222,6 +30,68 @@ const Stock = () => {
   const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [inventoryRes, productsRes, warehousesRes] = await Promise.all([
+        axios.get(`${API_BASE_URL}/inventory`),
+        axios.get(`${API_BASE_URL}/products?limit=1000`),
+        axios.get(`${API_BASE_URL}/warehouse`)
+      ]);
+
+      const inventories = inventoryRes.data.inventories || [];
+      const products = productsRes.data.products || [];
+      const warehouseList = warehousesRes.data.data || [];
+
+      // Update warehouse filter options
+      setWarehouses(["All Warehouses", ...warehouseList.map(w => w.name)]);
+
+      // Join data
+      const joinedData = inventories.map(inv => {
+        const product = products.find(p => p._id === inv.product) || {};
+        const warehouse = warehouseList.find(w => w._id === inv.warehouse) || {};
+
+        return {
+          id: inv._id,
+          product: {
+            name: product.name || "Unknown Product",
+            sku: product.sku || "N/A"
+          },
+          warehouse: warehouse.name || "Unknown Warehouse",
+          quantity: inv.quantity || 0,
+          amount: (inv.quantity || 0) * (product.retailPrice || 0), // Calculate amount based on retail price
+          allocatedQuantity: inv.allocatedQuantity || 0,
+          unit: product.unit || "piece",
+          threshold: product.minStockLevel || 10,
+          status: (inv.quantity || 0) <= (product.minStockLevel || 10) ? "low" : "normal",
+          lastUpdated: new Date(inv.lastUpdated),
+          batchInfo: inv.batchInfo || {},
+          locationInWarehouse: inv.locationInWarehouse || "General",
+          value: {
+            costPrice: product.costPrice || 0,
+            retailPrice: product.retailPrice || 0,
+            currency: "INR"
+          }
+        };
+      });
+
+      setStockData(joinedData);
+    } catch (err) {
+      console.error("Failed to fetch stock data:", err);
+      toast({
+        title: "Error",
+        description: "Failed to load stock data. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const [newStock, setNewStock] = useState({
     product: "",
@@ -397,6 +267,10 @@ const Stock = () => {
   }, {} as Record<string, { product: string; sku: string; total: number; allocated: number; threshold: number; unit: string; totalValue: number; currency: string }>);
 
   const productTotalsArray = Object.values(productTotals);
+
+  if (loading) {
+    return <div className="flex justify-center p-12"><Spinner /></div>;
+  }
 
   return (
     <>
@@ -747,11 +621,11 @@ const Stock = () => {
                 </TableHeader>
                 <TableBody>
                   {productTotalsArray
-                    .filter(item =>
+                    .filter((item: any) =>
                       item.product.toLowerCase().includes(searchQuery.toLowerCase()) ||
                       item.sku.toLowerCase().includes(searchQuery.toLowerCase())
                     )
-                    .map((item) => {
+                    .map((item: any) => {
                       const available = item.total - item.allocated;
                       const percentage = Math.min(Math.round((item.total / (item.threshold * 2)) * 100), 100);
                       const isLow = item.total <= item.threshold;
