@@ -18,7 +18,7 @@ import axios from "axios";
 import { User } from "@/types/index";
 
 // API base URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://https://doreamon-dzoa.onrender.com/api/v1";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 // Role descriptions
 const roleDescriptions = {

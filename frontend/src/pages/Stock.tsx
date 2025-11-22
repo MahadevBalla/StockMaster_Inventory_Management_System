@@ -278,8 +278,10 @@ const Stock = () => {
     setIsViewDetailsOpen(true);
   };
 
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
   const handleExportCSV = () => {
-    fetch('http://https://doreamon-dzoa.onrender.com/api/v1/inventory/export')
+    fetch(`${API_BASE_URL}/inventory/export`)
       .then(response => {
         if (!response.ok) {
           throw new Error('Network response was not ok');

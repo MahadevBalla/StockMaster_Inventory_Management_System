@@ -17,7 +17,7 @@ import axios from "axios";
 import { Spinner } from "@/components/ui/spinner";
 
 // API Base URL
-const API_BASE_URL = "https://doreamon-dzoa.onrender.com/api/v1";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const categories = [
   "All Categories",
@@ -193,7 +193,7 @@ const Products = () => {
     }
   };
 
- 
+
 
   // Filter products based on search and filters
   const filteredProducts = products.filter((product) => {
@@ -225,7 +225,7 @@ const Products = () => {
           </p>
         </div>
         <div className="flex gap-2">
-          
+
 
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>

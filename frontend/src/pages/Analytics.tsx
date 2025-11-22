@@ -118,7 +118,7 @@ const Analytics = () => {
         });
 
       // Create a blob URL for downloading the PDF
-      const response = await fetch("https://doreamon-dzoa.onrender.com/api/v1/inventory/generate-analysis-report", {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/inventory/generate-analysis-report`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
