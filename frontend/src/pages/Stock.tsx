@@ -332,7 +332,7 @@ const Stock = () => {
   };
 
   const formatCurrency = (value: number, currency: string = "INR") => {
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat("en-IN", {
       style: "currency",
       currency: currency
     }).format(value);

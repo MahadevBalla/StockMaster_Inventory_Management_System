@@ -275,7 +275,7 @@ const Receipts = () => {
                                         <TableRow key={index}>
                                             <TableCell>{getProductName(item.product)}</TableCell>
                                             <TableCell>{item.quantity}</TableCell>
-                                            <TableCell>{item.unitPrice}</TableCell>
+                                            <TableCell>₹{item.unitPrice}</TableCell>
                                             <TableCell>
                                                 <Button variant="ghost" size="sm" onClick={() => handleRemoveItem(index)}>
                                                     <X className="h-4 w-4 text-red-500" />
@@ -322,7 +322,7 @@ const Receipts = () => {
                                         <TableRow key={index}>
                                             <TableCell>{item.product?.name || "Unknown"}</TableCell>
                                             <TableCell>{item.quantity}</TableCell>
-                                            <TableCell>{item.unitPrice}</TableCell>
+                                            <TableCell>₹{item.unitPrice}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>

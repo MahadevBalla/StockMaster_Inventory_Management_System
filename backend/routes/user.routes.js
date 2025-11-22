@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { sendOtp, verifyOtp } from "../controllers/user.controller.js";
+import { sendOtp, verifyOtp, resetPassword } from "../controllers/user.controller.js";
 import {
   registerUser,
   loginUser,
@@ -14,4 +14,5 @@ router.post("/register", asyncHandler(registerUser));
 router.post("/login", asyncHandler(loginUser));
 router.post("/send-otp", asyncHandler(sendOtp));
 router.post("/verify-otp", asyncHandler(verifyOtp));
+router.post("/reset-password", asyncHandler(resetPassword));
 export default router;

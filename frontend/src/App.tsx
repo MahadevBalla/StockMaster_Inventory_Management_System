@@ -20,6 +20,7 @@ import Home from "./pages/Home";
 import Receipts from "./pages/Receipts";
 import DeliveryOrders from "./pages/DeliveryOrders";
 import MoveHistory from "./pages/MoveHistory";
+import OtpVerification from "./pages/OtpVerification";
 import { useEffect, useState } from "react";
 
 const queryClient = new QueryClient();
@@ -61,6 +62,7 @@ const App = () => (
 
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/otp-verification" element={<OtpVerification />} />
 
             {/* All protected routes now share a single AppLayout */}
             <Route element={<ProtectedLayout />}>

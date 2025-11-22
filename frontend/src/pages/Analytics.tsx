@@ -130,7 +130,7 @@ const Analytics = () => {
     const totalItems = (inventories || []).reduce((s, inv) => s + (inv.quantity || 0), 0);
     const totalMovements = (movements || []).length;
     return {
-      totalValue: `$${Math.round(totalValue).toLocaleString()}`,
+      totalValue: `₹${Math.round(totalValue).toLocaleString()}`,
       totalItems: totalItems.toLocaleString(),
       totalMovements: totalMovements.toLocaleString(),
     };
@@ -154,7 +154,7 @@ const Analytics = () => {
   const computedItemMovementData = (() => {
     if (movements && movements.length) {
       // days of week
-      const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
       const map: Record<string, { incoming: number; outgoing: number }> = {};
       for (const d of days) map[d] = { incoming: 0, outgoing: 0 };
       for (const m of movements) {
@@ -330,9 +330,27 @@ const Analytics = () => {
                   >
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
-                    <YAxis />
-                    <Tooltip formatter={(value) => [`$${value}`, 'Stock Value']} />
-                    <Bar dataKey="value" fill="#8884d8" name="Stock Value ($)" />
+                    <YAxis
+                      width={80}
+                      tickFormatter={(value) =>
+                        `₹${value.toLocaleString("en-IN", {
+                          maximumFractionDigits: 0
+                        })}`
+                      }
+                    />
+
+                    <Tooltip
+                      formatter={(value) =>
+                        [`₹${Number(value).toLocaleString("en-IN")}`, "Stock Value"]
+                      }
+                    />
+
+                    <Bar
+                      dataKey="value"
+                      fill="#4F46E5"
+                      name="Stock Value (₹)"
+                      radius={[6, 6, 0, 0]}
+                    />
                   </RechartBarChart>
                 </ResponsiveContainer>
               </div>
@@ -369,8 +387,8 @@ const Analytics = () => {
               <div className="h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <RechartPieChart>
-                      <Pie
-                        data={computedCategoryDistributionData}
+                    <Pie
+                      data={computedCategoryDistributionData}
                       cx="50%"
                       cy="50%"
                       innerRadius={60}
@@ -380,9 +398,9 @@ const Analytics = () => {
                       dataKey="value"
                       label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                     >
-                        {computedCategoryDistributionData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.fill} />
-                        ))}
+                      {computedCategoryDistributionData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
                     </Pie>
                     <Tooltip formatter={(value, name) => [`${value} units`, name]} />
                   </RechartPieChart>

@@ -12,7 +12,9 @@ import deliveryOrderRoutes from "./routes/deliveryOrder.routes.js";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createRequire } from "module";
 import dotenv from "dotenv";
+import multer from "multer";
 dotenv.config();
+const upload = multer();
 
 // Use require for pdfMake since it doesn't work well with ES modules
 const require = createRequire(import.meta.url);
@@ -52,86 +54,81 @@ const model = genAI.getGenerativeModel({ model: "models/gemini-2.0-flash" });
 // Function to analyze data with Gemini
 async function analyzeDataWithGemini(data) {
   try {
-    const prompt = `Analyze the following inventory data and provide key insights, potential issues, and recommendations: ${JSON.stringify(
-      data
-    )}`; //
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    return response.text();
+    // 1. Define the schema we want Gemini to follow
+    const schemaDescription = `
+      Return a strict JSON object with the following structure:
+      {
+        "executiveSummary": "A professional paragraph summarizing the overall status.",
+        "keyInsights": ["Insight 1", "Insight 2", ...],
+        "potentialRisks": ["Risk 1", "Risk 2", ...],
+        "recommendations": ["Recommendation 1", "Recommendation 2", ...]
+      }
+    `;
+
+    const prompt = `
+      Analyze the following inventory data. 
+      ${schemaDescription}
+      
+      Do not use Markdown formatting (no **bold** or ## headers) inside the JSON values.
+      Data: ${JSON.stringify(data)}
+    `;
+
+    // 2. Set response MIME type to JSON (Supported in newer Gemini models)
+    const generationConfig = {
+      temperature: 0.7,
+      responseMimeType: "application/json",
+    };
+
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig,
+    });
+
+    const response = result.response;
+    const text = response.text();
+
+    // 3. Parse the JSON string into a JavaScript Object
+    return JSON.parse(text);
+
   } catch (error) {
     console.error("Error calling Gemini API:", error);
-    throw error;
+    // Fallback object in case AI fails to generate valid JSON
+    return {
+      executiveSummary: "Error analyzing data.",
+      keyInsights: [],
+      potentialRisks: [],
+      recommendations: []
+    };
   }
 }
 
-// Function to generate the PDF report using pdfMake
-function generatePdfReport(analysisResult, rawData) {
-  // Helper function to format inventory data in a more readable way
-  function formatInventoryTable(data) {
-    // Check if data exists and has the expected structure
-    if (!data || data.length === 0) return [];
-
-    // Extract column headers from the first item
-    const headers = Object.keys(data[0]);
-
-    // Create the table definition
-    return {
-      table: {
-        headerRows: 1,
-        widths: Array(headers.length).fill("*"),
-        body: [
-          // Header row
-          headers.map((header) => ({
-            text:
-              header.charAt(0).toUpperCase() +
-              header.slice(1).replace(/([A-Z])/g, " $1"),
-            style: "tableHeader",
-          })),
-          // Data rows
-          ...data.map((item) =>
-            headers.map((header) => item[header]?.toString() || "")
-          ),
-        ],
-      },
-      layout: {
-        fillColor: function (rowIndex) {
-          return rowIndex === 0 ? "#CCCCCC" : null;
-        },
-      },
-    };
+function flattenObject(obj, parentKey = "", result = {}) {
+  for (let key in obj) {
+    const newKey = parentKey ? `${parentKey}_${key}` : key;
+    if (typeof obj[key] === "object" && obj[key] !== null) {
+      flattenObject(obj[key], newKey, result);
+    } else {
+      result[newKey] = obj[key];
+    }
   }
+  return result;
+}
 
-  // Format the analysis results with bullet points
-  function formatAnalysis(text) {
-    // Split by lines or potential bullet points
-    const sections = text.split(/\n\n|\r\n\r\n/);
+function convertToCSV(dataArray) {
+  if (!dataArray || dataArray.length === 0) return "";
 
-    const formattedSections = sections.map((section) => {
-      // Check if section already has bullet points
-      if (
-        section.includes("•") ||
-        section.includes("*") ||
-        section.includes("-")
-      ) {
-        return { text: section };
-      }
+  const flatData = dataArray.map((item) => flattenObject(item));
 
-      // Check if section has a title (ends with ':')
-      const titleMatch = section.match(/^(.+?):\s*(.*)$/s);
-      if (titleMatch) {
-        return [
-          { text: titleMatch[1] + ":", style: "analysisSubheader" },
-          { text: titleMatch[2].trim() },
-        ];
-      }
+  const headers = Object.keys(flatData[0]);
 
-      return { text: section };
-    });
+  const rows = flatData.map((row) =>
+    headers.map((header) => (row[header] !== undefined ? row[header] : "")).join(",")
+  );
 
-    return formattedSections.flat();
-  }
+  return [headers.join(","), ...rows].join("\n");
+}
 
-  // Get current date for the report
+function generatePdfReport(analysisResult) {
   const today = new Date();
   const formattedDate = today.toLocaleDateString("en-US", {
     year: "numeric",
@@ -139,70 +136,57 @@ function generatePdfReport(analysisResult, rawData) {
     day: "numeric",
   });
 
-  // Create the document definition
-  const documentDefinition = {
-    info: {
-      title: "Inventory Analysis Report",
-      author: "Inventory Management System",
-      subject: "Inventory Analysis",
-      keywords: "inventory, analysis, report",
-    },
-    header: function (currentPage, pageCount) {
-      return {
-        text: `Page ${currentPage} of ${pageCount}`,
-        alignment: "right",
-        margin: [0, 10, 20, 0],
-        fontSize: 8,
-      };
-    },
-    footer: function (currentPage, pageCount) {
-      return {
-        text: `Generated on ${formattedDate}`,
-        alignment: "center",
-        fontSize: 8,
-        margin: [0, 0, 0, 10],
-      };
-    },
-    content: [
-      // Title
-      {
-        text: "Inventory Analysis Report",
-        style: "header",
-        margin: [0, 0, 0, 20],
-      },
+  // Section builder
+  const createSection = (title, items, color = "#000000") => {
+    if (!items || items.length === 0) return null;
 
-      // Executive Summary
+    return [
+      { text: title, style: "analysisSubheader" },
       {
-        text: "Executive Summary",
-        style: "subheader",
+        ul: items,
+        margin: [10, 0, 0, 10],
+        color,
       },
+    ];
+  };
+
+  const documentDefinition = {
+    info: { title: "Inventory Analysis Report" },
+
+    header: (currentPage, pageCount) => ({
+      text: `Page ${currentPage} of ${pageCount}`,
+      alignment: "right",
+      margin: [0, 10, 20, 0],
+      fontSize: 8,
+    }),
+
+    footer: () => ({
+      text: `Generated on ${formattedDate}`,
+      alignment: "center",
+      fontSize: 8,
+      margin: [0, 0, 0, 10],
+    }),
+
+    content: [
+      { text: "Inventory Analysis Report", style: "header", margin: [0, 0, 0, 20] },
+
+      // Summary
+      { text: "Executive Summary", style: "subheader" },
       {
-        text: "This report provides an automated analysis of inventory data using Google's Gemini AI model, highlighting key metrics, trends, and recommendations.",
+        text: analysisResult.executiveSummary || "No summary available.",
         margin: [0, 0, 0, 15],
       },
 
-      // Analysis Results
-      {
-        text: "Analysis Results",
-        style: "subheader",
-        pageBreak: "before",
-      },
-      ...formatAnalysis(analysisResult),
+      // Insights
+      createSection("Key Insights", analysisResult.keyInsights),
 
-      // Raw Data Table
-      {
-        text: "Inventory Data",
-        style: "subheader",
-        pageBreak: "before",
-        margin: [0, 0, 0, 10],
-      },
-      {
-        text: `Total Items Analyzed: ${rawData.length}`,
-        margin: [0, 0, 0, 10],
-        bold: true,
-      },
-      formatInventoryTable(rawData),
+      // Risks
+      createSection("Potential Risks & Issues", analysisResult.potentialRisks, "#C00000"),
+
+      // Recommendations
+      createSection("Strategic Recommendations", analysisResult.recommendations),
     ],
+
     styles: {
       header: {
         fontSize: 22,
@@ -217,69 +201,74 @@ function generatePdfReport(analysisResult, rawData) {
         color: "#2F5496",
       },
       analysisSubheader: {
-        fontSize: 14,
+        fontSize: 13,
         bold: true,
         margin: [0, 10, 0, 5],
-        color: "#2F5496",
-      },
-      tableHeader: {
-        bold: true,
-        fontSize: 12,
-        color: "#000000",
-        alignment: "center",
+        color: "#4472C4",
       },
     },
-    defaultStyle: {
-      fontSize: 11,
-      lineHeight: 1.2,
-    },
+
+    defaultStyle: { fontSize: 11, lineHeight: 1.2 },
   };
 
   return new Promise((resolve, reject) => {
     try {
       const pdfDocGenerator = pdfMake.createPdf(documentDefinition);
-      pdfDocGenerator.getBuffer((buffer) => {
-        resolve(buffer);
-      });
+      pdfDocGenerator.getBuffer((buffer) => resolve(buffer));
     } catch (error) {
-      console.error("Error in PDF generation:", error);
       reject(error);
     }
   });
 }
-// New route for generating the analysis report
-app.post("/api/v1/inventory/generate-analysis-report", async (req, res) => {
-  try {
-    // Assuming you'll send the necessary data in the request body
-    const inventoryData = req.body.inventoryData;
 
-    if (
-      !inventoryData ||
-      !Array.isArray(inventoryData) ||
-      inventoryData.length === 0
-    ) {
-      return res
-        .status(400)
-        .json({ error: "Inventory data is required in the request body." });
+app.post(
+  "/api/v1/inventory/generate-analysis-report",
+  upload.none(),
+  async (req, res) => {
+    try {
+      const inventoryData = req.body.inventoryData;
+
+      if (!inventoryData || !Array.isArray(inventoryData)) {
+        return res.status(400).json({ error: "Inventory data required." });
+      }
+
+      const analysis = await analyzeDataWithGemini(inventoryData);
+
+      const pdfBuffer = await generatePdfReport(analysis);
+
+      const csvString = convertToCSV(inventoryData);
+
+      res.status(200).set({
+        "Content-Type": "multipart/mixed; boundary=Boundary123",
+      });
+
+      const responseBody =
+        `--Boundary123
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="inventory_analysis_report.pdf"
+
+` +
+        pdfBuffer.toString("binary") +
+        `
+--Boundary123
+Content-Type: text/csv
+Content-Disposition: attachment; filename="inventory_export.csv"
+
+` +
+        csvString +
+        `
+--Boundary123--`;
+
+      res.end(responseBody, "binary");
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({
+        error: "Failed to generate report",
+        details: err.message,
+      });
     }
-
-    const analysisResult = await analyzeDataWithGemini(inventoryData);
-    const pdfBuffer = await generatePdfReport(analysisResult, inventoryData);
-
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader(
-      "Content-Disposition",
-      'attachment; filename="inventory_analysis_report.pdf"'
-    );
-    res.send(pdfBuffer);
-  } catch (error) {
-    console.error("Error generating inventory analysis report:", error);
-    res.status(500).json({
-      error: "Failed to generate inventory analysis report",
-      details: error.message,
-    });
   }
-});
+);
 
 // Routes import
 app.use("/api/v1/user", userRoutes);

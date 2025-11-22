@@ -162,7 +162,7 @@ const Dashboard = () => {
 
     return [
       { title: "Total Stock", value: totalStock.toLocaleString(), trend: { value: 0, label: "", positive: true } },
-      { title: "Stock Value", value: `$${Math.round(totalStockValue).toLocaleString()}`, trend: { value: 0, label: "", positive: true } },
+      { title: "Stock Value", value: `₹${Math.round(totalStockValue).toLocaleString()}`, trend: { value: 0, label: "", positive: true } },
       { title: "Low Stock Items", value: lowStockCount.toString(), trend: { value: 0, label: "", positive: false } },
       { title: "Pending Transfers", value: pendingTransfers.toString(), trend: { value: 0, label: "", positive: false } },
     ];
@@ -366,8 +366,8 @@ const Dashboard = () => {
                   <div className="h-[250px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                          <Pie
-                            data={computedCategoryData}
+                        <Pie
+                          data={computedCategoryData}
                           cx="50%"
                           cy="50%"
                           innerRadius={60}

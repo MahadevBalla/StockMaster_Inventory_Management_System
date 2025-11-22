@@ -129,7 +129,9 @@ const Login = () => {
                 if (statusCode === 401) {
                     errorMessage = "Invalid email or password";
                 } else if (statusCode === 403) {
-                    errorMessage = "Your account has been deactivated";
+                    errorMessage = "OTP verification required";
+                    // Redirect to OTP verification page with username
+                    setTimeout(() => navigate("/otp-verification", { state: { username: data.username } }), 1500);
                 } else if (statusCode === 404) {
                     errorMessage = "Account not found";
                 } else if (statusCode >= 500) {
@@ -221,6 +223,19 @@ const Login = () => {
                                     {errors.password && (
                                         <p className="text-sm text-red-500">{errors.password.message}</p>
                                     )}
+                                    {errors.password && (
+                                        <p className="text-sm text-red-500">{errors.password.message}</p>
+                                    )}
+                                    <div className="text-center mt-4">
+                                        <Button
+                                            variant="link"
+                                            className="text-sm text-muted-foreground"
+                                            onClick={() => navigate("/otp-verification?mode=reset")}
+                                            type="button"
+                                        >
+                                            Forgot password?
+                                        </Button>
+                                    </div>
                                 </div>
 
                                 <div className="space-y-2">

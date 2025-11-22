@@ -10,7 +10,7 @@ export const stockStats = [
   },
   {
     title: "Total Stock Value",
-    value: "$682,945",
+    value: "₹682,945",
     trend: { value: 8.2, label: "from last month", positive: true },
   },
   {

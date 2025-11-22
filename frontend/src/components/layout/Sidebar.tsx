@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Home,
   Receipt,
+  KeyRound,
   Truck,
   ArrowRightLeft
 } from "lucide-react";
@@ -37,6 +38,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 
 type UserRole = "admin" | "manager" | "staff";
@@ -294,28 +303,7 @@ const Sidebar = ({ currentUser }: SidebarProps) => {
         </Button>
       </div>
 
-      {/* User info */}
-      <div className={cn(
-        "flex items-center p-4 border-b",
-        collapsed ? "justify-center" : "justify-start"
-      )}>
-        <Avatar className="h-8 w-8">
-          <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${currentUser.username}`} />
-          <AvatarFallback>{currentUser.username.substring(0, 2).toUpperCase()}</AvatarFallback>
-        </Avatar>
 
-        {!collapsed && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="ml-3"
-          >
-            <div className="font-medium text-sm">{currentUser.username}</div>
-            <div className="text-xs text-muted-foreground capitalize">{currentUser.role}</div>
-          </motion.div>
-        )}
-      </div>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-2">
@@ -379,19 +367,47 @@ const Sidebar = ({ currentUser }: SidebarProps) => {
         </ul>
       </nav>
 
-      {/* Footer */}
-      <div className="p-4 border-t mt-auto">
-        <Button
-          variant="ghost"
-          className={cn(
-            "w-full flex items-center justify-center gap-2",
-            collapsed ? "px-2" : "px-4"
-          )}
-          onClick={handleLogout}
-        >
-          <LogOut className="h-5 w-5" />
-          {!collapsed && <span>Logout</span>}
-        </Button>
+      {/* User info (moved to bottom) */}
+      <div className={cn(
+        "flex items-center p-4 border-t mt-auto",
+        collapsed ? "justify-center" : "justify-start"
+      )}>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <div className={cn("flex items-center cursor-pointer", collapsed ? "justify-center" : "w-full")}>
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${currentUser.username}`} />
+                <AvatarFallback>{currentUser.username.substring(0, 2).toUpperCase()}</AvatarFallback>
+              </Avatar>
+
+              {!collapsed && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="ml-3 flex-1"
+                >
+                  <div className="font-medium text-sm">{currentUser.username}</div>
+                  <div className="text-xs text-muted-foreground capitalize">{currentUser.role}</div>
+                </motion.div>
+              )}
+              {!collapsed && <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />}
+            </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate("/otp-verification?mode=reset", { state: { autoSend: true } })}>
+              <KeyRound className="mr-2 h-4 w-4" />
+              <span>Reset Password</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Logout</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

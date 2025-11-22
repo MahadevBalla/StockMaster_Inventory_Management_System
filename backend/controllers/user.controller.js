@@ -109,12 +109,18 @@ export const getAllUsers = asyncHandler(async (req, res) => {
   });
 });
 export const sendOtp = asyncHandler(async (req, res) => {
-  const { email } = req.body;
+  const { email, username } = req.body;
 
-  if (!email)
-    return res.status(400).json({ message: "Email is required to send OTP" });
+  if (!email && !username)
+    return res.status(400).json({ message: "Email or Username is required to send OTP" });
 
-  const user = await User.findOne({ email });
+  let user;
+  if (email) {
+    user = await User.findOne({ email });
+  } else {
+    user = await User.findOne({ username });
+  }
+
   if (!user) return res.status(404).json({ message: "User not found" });
 
   const otp = generateOtp();
@@ -123,9 +129,10 @@ export const sendOtp = asyncHandler(async (req, res) => {
   user.otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 mins
   await user.save();
 
+  // Always send to the user's email, even if they provided username
   await sendEmail(user.email, "Your OTP Code", `Your OTP is: ${otp}`);
 
-  res.status(200).json({ message: "OTP sent to email" });
+  res.status(200).json({ message: `OTP sent to ${user.email}`, email: user.email });
 });
 
 export const verifyOtp = asyncHandler(async (req, res) => {
@@ -150,4 +157,36 @@ export const verifyOtp = asyncHandler(async (req, res) => {
   await user.save();
 
   res.status(200).json({ message: "OTP verified successfully" });
+});
+
+export const resetPassword = asyncHandler(async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+
+  if (!email || !otp || !newPassword) {
+    return res
+      .status(400)
+      .json({ message: "Email, OTP, and new password are required" });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ message: "Password must be at least 6 characters long" });
+  }
+
+  const user = await User.findOne({ email });
+  if (!user) return res.status(404).json({ message: "User not found" });
+
+  if (user.otpCode !== otp)
+    return res.status(401).json({ message: "Invalid OTP" });
+
+  if (user.otpExpiry < new Date())
+    return res.status(410).json({ message: "OTP expired" });
+
+  // Update password
+  user.passwordHash = newPassword; // Will be hashed by pre-save hook
+  user.isOtpVerified = true; // Ensure they are verified
+  user.otpCode = null;
+  user.otpExpiry = null;
+  await user.save();
+
+  res.status(200).json({ message: "Password reset successfully" });
 });
