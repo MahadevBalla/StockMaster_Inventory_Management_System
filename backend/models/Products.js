@@ -14,12 +14,13 @@ const ProductSchema = new mongoose.Schema(
     minStockLevel: Number,
     isPerishable: Boolean,
     defaultExpiryDays: Number,
+    sku: { type: String, unique: true, sparse: true }
   },
   { timestamps: true }
 );
 
 // Explicitly define indexes
-ProductSchema.index({ name: 1 }, { unique: true }); // If you want unique product names
+ProductSchema.index({ name: 1, warehouse: 1 }, { unique: true }); // Unique name per warehouse
 // ProductSchema.index({ category: 1 }); // Already had this via schema option
 
 const Product = mongoose.model("Product", ProductSchema);

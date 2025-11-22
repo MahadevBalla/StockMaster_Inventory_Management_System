@@ -8,6 +8,7 @@ import warehouseRoutes from "./routes/warehouse.routes.js";
 import alertsRoutes from "./routes/alerts.routes.js";
 import inventoryRoutes from "./routes/inventory.routes.js";
 import receiptRoutes from "./routes/receipt.routes.js";
+import deliveryOrderRoutes from "./routes/deliveryOrder.routes.js";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createRequire } from "module";
 import dotenv from "dotenv";
@@ -288,5 +289,6 @@ app.use("/api/v1/movements", movementRoutes);
 app.use("/api/v1/alerts", alertsRoutes);
 app.use("/api/v1/inventory", inventoryRoutes);
 app.use("/api/v1/receipts", receiptRoutes);
+app.use("/api/v1/delivery-orders", deliveryOrderRoutes);
 
 export default app;

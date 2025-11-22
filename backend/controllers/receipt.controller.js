@@ -102,6 +102,25 @@ export const validateReceipt = async (req, res) => {
                 );
             }
 
+            // Update Warehouse products array
+            const warehouseDoc = await Warehouse.findById(receipt.warehouse).session(session);
+            if (warehouseDoc) {
+                const productIndex = warehouseDoc.products.findIndex(
+                    (p) => p.product.toString() === item.product.toString()
+                );
+
+                if (productIndex > -1) {
+                    warehouseDoc.products[productIndex].quantity += item.quantity;
+                } else {
+                    warehouseDoc.products.push({
+                        product: item.product,
+                        quantity: item.quantity,
+                    });
+                }
+                await warehouseDoc.save({ session });
+            }
+
+
             // Create Movement Record
             await Movement.create(
                 [
