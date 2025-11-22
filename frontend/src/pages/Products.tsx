@@ -90,7 +90,7 @@ const Products = () => {
   const fetchWarehouses = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/warehouse`);
-      setWarehouses(response.data);
+      setWarehouses(response.data.data || []);
     } catch (err) {
       console.error("Failed to fetch warehouses:", err);
     }
