@@ -1,9 +1,10 @@
 import Movement from "../models/Movements.js";
-import Inventory from "../models/Inventory.js";
+import Product from "../models/Products.js";
+import Warehouse from "../models/Warehouse.js";
 import mongoose from "mongoose";
 import { Parser } from "json2csv";
 
-// 📦 Create a new movement
+// 📦 Create a new movement (Simplified - Product + Warehouse only)
 export const createMovement = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -14,8 +15,6 @@ export const createMovement = async (req, res) => {
       product,
       fromWarehouse,
       toWarehouse,
-      fromLocation,
-      toLocation,
       quantity,
       initiatedBy,
       status,
@@ -25,57 +24,59 @@ export const createMovement = async (req, res) => {
       throw new Error("Missing required fields");
     }
 
+    const productDoc = await Product.findById(product).session(session);
+    if (!productDoc) {
+      throw new Error("Product not found");
+    }
+
     // 1. Handle Stock Updates based on Type
     if (type === "Transfer") {
       if (!fromWarehouse || !toWarehouse) {
         throw new Error("Transfer requires both source and destination warehouses");
       }
 
-      // Decrement from Source
-      let sourceInventory;
+      // Get source warehouse
+      const sourceWH = await Warehouse.findById(fromWarehouse).session(session);
+      if (!sourceWH) {
+        throw new Error("Source warehouse not found");
+      }
 
-      if (fromLocation) {
-        // If location is specified, find inventory at that specific location
-        sourceInventory = await Inventory.findOne({
-          product,
-          warehouse: fromWarehouse,
-          locationInWarehouse: fromLocation
-        }).session(session);
+      // Find product in source warehouse
+      const sourceProductIndex = sourceWH.products.findIndex(
+        p => p.product.toString() === product
+      );
+
+      if (sourceProductIndex === -1 || sourceWH.products[sourceProductIndex].quantity < quantity) {
+        const available = sourceProductIndex >= 0 ? sourceWH.products[sourceProductIndex].quantity : 0;
+        throw new Error(`Insufficient stock in source warehouse. Available: ${available}, Requested: ${quantity}`);
+      }
+
+      // Decrement from source
+      sourceWH.products[sourceProductIndex].quantity -= quantity;
+      if (sourceWH.products[sourceProductIndex].quantity === 0) {
+        sourceWH.products.splice(sourceProductIndex, 1);
+      }
+      await sourceWH.save({ session });
+
+      // Get destination warehouse
+      const destWH = await Warehouse.findById(toWarehouse).session(session);
+      if (!destWH) {
+        throw new Error("Destination warehouse not found");
+      }
+
+      // Increment at destination
+      const destProductIndex = destWH.products.findIndex(
+        p => p.product.toString() === product
+      );
+
+      if (destProductIndex >= 0) {
+        destWH.products[destProductIndex].quantity += quantity;
       } else {
-        // If no location specified, find ANY inventory of this product in the warehouse
-        sourceInventory = await Inventory.findOne({
-          product,
-          warehouse: fromWarehouse,
-          quantity: { $gte: quantity } // Must have enough stock
-        }).session(session);
+        destWH.products.push({ product, quantity });
       }
+      await destWH.save({ session });
 
-      if (!sourceInventory || sourceInventory.quantity < quantity) {
-        throw new Error(`Insufficient stock at source ${fromLocation ? `(${fromLocation})` : 'warehouse'}`);
-      }
-
-      sourceInventory.quantity -= quantity;
-      await sourceInventory.save({ session });
-
-      // Increment at Destination
-      const destInventory = await Inventory.findOne({
-        product,
-        warehouse: toWarehouse,
-        locationInWarehouse: toLocation || "General"
-      }).session(session);
-
-      if (destInventory) {
-        destInventory.quantity += Number(quantity);
-        await destInventory.save({ session });
-      } else {
-        await Inventory.create([{
-          product,
-          warehouse: toWarehouse,
-          locationInWarehouse: toLocation || "General",
-          quantity: quantity,
-          value: sourceInventory.value // Carry over value
-        }], { session });
-      }
+      // Product.stock remains unchanged (just moved between warehouses)
     }
 
     // Handle Incoming (Receive from vendor)
@@ -84,24 +85,26 @@ export const createMovement = async (req, res) => {
         throw new Error("Incoming requires destination warehouse");
       }
 
-      const destInventory = await Inventory.findOne({
-        product,
-        warehouse: toWarehouse,
-        locationInWarehouse: toLocation || "General"
-      }).session(session);
+      // Increment Product.stock
+      productDoc.stock += quantity;
+      await productDoc.save({ session });
 
-      if (destInventory) {
-        destInventory.quantity += Number(quantity);
-        await destInventory.save({ session });
-      } else {
-        await Inventory.create([{
-          product,
-          warehouse: toWarehouse,
-          locationInWarehouse: toLocation || "General",
-          quantity: quantity,
-          value: { costPrice: 0, retailPrice: 0, currency: "INR" } // Default value
-        }], { session });
+      // Increment warehouse quantity
+      const warehouse = await Warehouse.findById(toWarehouse).session(session);
+      if (!warehouse) {
+        throw new Error("Warehouse not found");
       }
+
+      const productIndex = warehouse.products.findIndex(
+        p => p.product.toString() === product
+      );
+
+      if (productIndex >= 0) {
+        warehouse.products[productIndex].quantity += quantity;
+      } else {
+        warehouse.products.push({ product, quantity });
+      }
+      await warehouse.save({ session });
     }
 
     // Handle Outgoing (Deliver to customer)
@@ -110,28 +113,32 @@ export const createMovement = async (req, res) => {
         throw new Error("Outgoing requires source warehouse");
       }
 
-      let sourceInventory;
-
-      if (fromLocation) {
-        sourceInventory = await Inventory.findOne({
-          product,
-          warehouse: fromWarehouse,
-          locationInWarehouse: fromLocation
-        }).session(session);
-      } else {
-        sourceInventory = await Inventory.findOne({
-          product,
-          warehouse: fromWarehouse,
-          quantity: { $gte: quantity }
-        }).session(session);
+      // Get warehouse
+      const warehouse = await Warehouse.findById(fromWarehouse).session(session);
+      if (!warehouse) {
+        throw new Error("Warehouse not found");
       }
 
-      if (!sourceInventory || sourceInventory.quantity < quantity) {
-        throw new Error(`Insufficient stock for outgoing delivery`);
+      // Find product in warehouse
+      const productIndex = warehouse.products.findIndex(
+        p => p.product.toString() === product
+      );
+
+      if (productIndex === -1 || warehouse.products[productIndex].quantity < quantity) {
+        const available = productIndex >= 0 ? warehouse.products[productIndex].quantity : 0;
+        throw new Error(`Insufficient stock in warehouse. Available: ${available}, Requested: ${quantity}`);
       }
 
-      sourceInventory.quantity -= quantity;
-      await sourceInventory.save({ session });
+      // Decrement warehouse quantity
+      warehouse.products[productIndex].quantity -= quantity;
+      if (warehouse.products[productIndex].quantity === 0) {
+        warehouse.products.splice(productIndex, 1);
+      }
+      await warehouse.save({ session });
+
+      // Decrement Product.stock
+      productDoc.stock -= quantity;
+      await productDoc.save({ session });
     }
 
     // Handle Adjustment (damaged, lost, found items)
@@ -140,33 +147,39 @@ export const createMovement = async (req, res) => {
         throw new Error("Adjustment requires warehouse");
       }
 
-      let inventory;
-
-      if (fromLocation) {
-        inventory = await Inventory.findOne({
-          product,
-          warehouse: fromWarehouse,
-          locationInWarehouse: fromLocation
-        }).session(session);
-      } else {
-        inventory = await Inventory.findOne({
-          product,
-          warehouse: fromWarehouse
-        }).session(session);
+      // Get warehouse
+      const warehouse = await Warehouse.findById(fromWarehouse).session(session);
+      if (!warehouse) {
+        throw new Error("Warehouse not found");
       }
 
-      if (!inventory) {
-        throw new Error(`Product not found in warehouse`);
+      // Find product in warehouse
+      const productIndex = warehouse.products.findIndex(
+        p => p.product.toString() === product
+      );
+
+      if (productIndex === -1) {
+        throw new Error("Product not found in warehouse");
       }
 
-      // Quantity can be positive (found items) or negative (damaged/lost)
-      inventory.quantity += Number(quantity);
+      // Update warehouse quantity (can be positive or negative)
+      warehouse.products[productIndex].quantity += quantity;
 
-      if (inventory.quantity < 0) {
-        throw new Error(`Adjustment would result in negative stock`);
+      if (warehouse.products[productIndex].quantity < 0) {
+        throw new Error("Adjustment would result in negative stock");
       }
 
-      await inventory.save({ session });
+      if (warehouse.products[productIndex].quantity === 0) {
+        warehouse.products.splice(productIndex, 1);
+      }
+      await warehouse.save({ session });
+
+      // Update Product.stock
+      productDoc.stock += quantity;
+      if (productDoc.stock < 0) {
+        throw new Error("Adjustment would result in negative total stock");
+      }
+      await productDoc.save({ session });
     }
 
     // 2. Create Movement Record
@@ -175,11 +188,9 @@ export const createMovement = async (req, res) => {
       product,
       fromWarehouse,
       toWarehouse,
-      fromLocation,
-      toLocation,
       quantity,
       initiatedBy,
-      status: status || "completed",
+      status: status || "completed"
     }], { session });
 
     await session.commitTransaction();
@@ -261,7 +272,7 @@ export const deleteMovement = async (req, res) => {
   }
 };
 
-//export as csv
+// Export as CSV
 export const exportMovementsCSV = async (req, res) => {
   try {
     const movements = await Movement.find()
@@ -269,7 +280,7 @@ export const exportMovementsCSV = async (req, res) => {
       .populate("fromWarehouse", "name")
       .populate("toWarehouse", "name")
       .populate("initiatedBy", "username email")
-      .lean(); // return plain objects
+      .lean();
 
     const formatted = movements.map((m) => ({
       Type: m.type,

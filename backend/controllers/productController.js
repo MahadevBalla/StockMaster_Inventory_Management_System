@@ -1,5 +1,6 @@
 import Product from "../models/Products.js";
 import Inventory from "../models/Inventory.js";
+import Warehouse from "../models/Warehouse.js";
 import mongoose from "mongoose";
 // import generate from "../utils/barcodeGenAPI.js";
 // import { handleMovement } from '../utils/handleMovement.js';
@@ -65,6 +66,30 @@ export const createProduct = async (req, res) => {
     });
 
     const savedProduct = await product.save();
+
+    // Create Inventory record
+    if (warehouse && savedProduct.stock > 0) {
+      await Inventory.create({
+        product: savedProduct._id,
+        warehouse: warehouse,
+        locationInWarehouse: "General",
+        quantity: savedProduct.stock,
+        value: { costPrice: 0, retailPrice: 0, currency: "INR" }
+      });
+    }
+
+    // Update Warehouse products array
+    if (warehouse) {
+      const warehouseDoc = await Warehouse.findById(warehouse);
+      if (warehouseDoc) {
+        warehouseDoc.products.push({
+          product: savedProduct._id,
+          quantity: savedProduct.stock
+        });
+        await warehouseDoc.save();
+      }
+    }
+
     res.status(201).json(savedProduct);
   } catch (error) {
     res.status(400).json({
@@ -146,9 +171,46 @@ export const updateProduct = async (req, res) => {
     await product.validate();
     const updatedProduct = await product.save();
 
+    // Update Inventory record
+    if (updates.stock !== undefined && product.warehouse) {
+      const inventory = await Inventory.findOne({
+        product: product._id,
+        warehouse: product.warehouse
+      });
+
+      if (inventory) {
+        inventory.quantity = product.stock;
+        await inventory.save();
+      }
+    }
+
+    // Update Warehouse products array
+    if ((updates.stock !== undefined || updates.warehouse) && product.warehouse) {
+      const warehouseDoc = await Warehouse.findById(product.warehouse);
+      if (warehouseDoc) {
+        const productIndex = warehouseDoc.products.findIndex(
+          p => p.product.toString() === product._id.toString()
+        );
+
+        if (productIndex >= 0) {
+          warehouseDoc.products[productIndex].quantity = product.stock;
+        } else {
+          warehouseDoc.products.push({
+            product: product._id,
+            quantity: product.stock
+          });
+        }
+        await warehouseDoc.save();
+      }
+    }
+
     res.status(200).json(updatedProduct);
   } catch (error) {
-    // Error handling (unchanged)
+    console.error("Update product error:", error);
+    res.status(400).json({
+      message: "Product update failed",
+      error: error.message,
+    });
   }
 };
 // Delete product
